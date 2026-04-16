@@ -1,26 +1,35 @@
 import 'package:flutter/material.dart';
+import 'task_repository.dart';
 
-void main() {
+void main(){
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  MyApp({super.key});
-
-  List<Task> tasks = [
-    Task(title: "Przygotować prezentację", deadline: "jutro", priority: "wysoki", done: false),
-    Task(title: "Nauczyc grac sie na flecie", deadline: "dzisiaj", priority: "wysoki", done: true),
-    Task(title: "Powtorzyc Jave", deadline: "w piątek", priority: "średni", done: false),
-    Task(title: "Zadanie z matematyki", deadline: "w weekend", priority: "niski", done: false),
-  ];
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    int completedTasks = tasks.where((task) => task.done).length;
-
     return MaterialApp(
       title: 'Flutter Demo',
-      home: Scaffold(
+      home: HomeScreen(),
+    );
+  }
+}
+class HomeScreen extends StatefulWidget{
+    const HomeScreen({super.key});
+
+    @override
+    State<HomeScreen> createState() => _HomeScreenState();
+  }
+
+  class _HomeScreenState extends State<HomeScreen>{
+
+  @override
+  Widget build(BuildContext context) {
+    int completedTasks = TaskRepository.tasks.where((task) => task.done).length;
+
+    return Scaffold(
         appBar: AppBar(
           title: Text("KrakFlow"),
         ),
@@ -29,7 +38,7 @@ class MyApp extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Masz dziś ${tasks.length} zadania. Wykonano: $completedTasks"),
+              Text("Masz dziś ${TaskRepository.tasks.length} zadania. Wykonano: $completedTasks"),
               SizedBox(height: 16),
               Text(
                 "Dzisiejsze zadania",
@@ -41,13 +50,14 @@ class MyApp extends StatelessWidget {
               SizedBox(height: 16),
               Expanded(
                 child: ListView.builder(
-                    itemCount: tasks.length,
+                    itemCount: TaskRepository.tasks.length,
                     itemBuilder: (context, index) {
+                      final task = TaskRepository.tasks;
                       return TaskCard(
-                        title: tasks[index].title,
-                        deadline: tasks[index].deadline,
-                        priority: tasks[index].priority,
-                        icon: tasks[index].done ? Icons.check_circle : Icons.radio_button_unchecked,
+                        title: task[index].title,
+                        deadline: task[index].deadline,
+                        priority: task[index].priority,
+                        icon: task[index].done ? Icons.check_circle : Icons.radio_button_unchecked,
                       );
                     }
                 ),
@@ -55,35 +65,109 @@ class MyApp extends StatelessWidget {
             ],
           ),
         ),
-      ),
+
+        floatingActionButton: FloatingActionButton(
+          onPressed: () async {
+            final Task? newTask = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AddTaskScreen(),
+              ),
+            );
+            if (newTask != null) {
+              setState(() {
+                TaskRepository.tasks.add(newTask);
+              });
+            }
+          },
+          child: Icon(Icons.add),
+        ),
     );
   }
 }
 
-class Task {
-  String title;
-  String deadline;
-  bool done;
-  String priority;
-
-  Task({required this.title, required this.deadline, required this.done, required this.priority});
-}
-
-class TaskCard extends StatelessWidget{
+class TaskCard extends StatelessWidget {
   final String title;
   final String deadline;
   final String priority;
   final IconData icon;
 
-  const TaskCard({super.key, required this.title, required this.deadline, required this.priority, required this.icon});
+  const TaskCard(
+      {super.key, required this.title, required this.deadline, required this.priority, required this.icon});
 
   @override
-  Widget build(BuildContext context){
+  Widget build(BuildContext context) {
     return Card(
       child: ListTile(
         leading: Icon(icon),
         title: Text(title),
         subtitle: Text("termin: $deadline | priorytet: $priority"),
+      ),
+    );
+  }
+}
+
+class AddTaskScreen extends StatelessWidget {
+  AddTaskScreen({super.key});
+  final TextEditingController titleController = TextEditingController();
+  final TextEditingController deadlineController = TextEditingController();
+  final TextEditingController priorityController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Nowe zadanie"),
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: InputDecoration(
+                labelText: "Tytuł zadania",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            SizedBox(height: 16),
+
+            TextField(
+              controller: deadlineController,
+              decoration: InputDecoration(
+                labelText: "Termin wykonania",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            SizedBox(height: 16),
+
+            TextField(
+              controller: priorityController,
+              decoration: InputDecoration(
+                labelText: "Priorytet",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Task newTask = Task(
+                    title: titleController.text,
+                    deadline: deadlineController.text,
+                    priority: priorityController.text,
+                    done: false,
+                  );
+
+                  Navigator.pop(context, newTask);
+                },
+                child: Text("Zapisz"),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
