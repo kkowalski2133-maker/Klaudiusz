@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'task_repository.dart';
+import 'task_api_service.dart';
 
 void main() {
   runApp(MyApp());
@@ -28,27 +29,30 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Zmienna do przechowywania wybranego filtru
   String selectedFilter = "wszystkie";
+  late Future<List<Task>> tasksFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    TaskRepository.tasks.clear();
+
+    tasksFuture = TaskApiService.fetchTasks().then((fetchedTasks) {
+      if (mounted) {
+        setState(() {
+          TaskRepository.tasks = fetchedTasks;
+        });
+      }
+      return fetchedTasks;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Obliczanie wykonanych zadań
-    int completedTasks = TaskRepository.tasks.where((task) => task.done).length;
-
-    // Logika filtrowania
-    List<Task> filteredTasks = TaskRepository.tasks;
-    if (selectedFilter == "wykonane") {
-      filteredTasks = TaskRepository.tasks.where((task) => task.done).toList();
-    } else if (selectedFilter == "do zrobienia") {
-      filteredTasks = TaskRepository.tasks.where((task) => !task.done).toList();
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: Text("KrakFlow"),
         actions: [
-          // Zadanie 5: Ikona usuwania wszystkich zadań
           IconButton(
             icon: Icon(
               Icons.delete_sweep,
@@ -78,9 +82,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.pop(dialogContext); // Zamknięcie dialogu
+                          Navigator.pop(dialogContext);
                           setState(() {
-                            TaskRepository.tasks.clear(); // Wyczyść listę
+                            TaskRepository.tasks.clear();
                           });
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -99,94 +103,120 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Masz dziś ${TaskRepository.tasks.length} zadań. Wykonano: $completedTasks"),
-            SizedBox(height: 8),
+      body: FutureBuilder<List<Task>>(
+        future: tasksFuture,
+        builder: (context, snapshot) {
 
-            // Zadanie 4: Pasek filtrowania wydzielony do zewnętrznego widgetu
-            FilterBar(
-              selectedFilter: selectedFilter,
-              onFilterChanged: (newFilter) {
-                setState(() {
-                  selectedFilter = newFilter;
-                });
-              },
-            ),
-            SizedBox(height: 8),
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
 
-            Text(
-              "Dzisiejsze zadania",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                "Błąd pobierania z API:\n\${snapshot.error}",
+                style: const TextStyle(color: Colors.red, fontSize: 16),
+                textAlign: TextAlign.center,
               ),
-            ),
-            SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: filteredTasks.length,
-                itemBuilder: (context, index) {
-                  final task = filteredTasks[index];
+            );
+          }
 
-                  // Zadanie 1: Dismissible (usuwanie gestem)
-                  return Dismissible(
-                    key: ValueKey(task.title + task.hashCode.toString()), // Zabezpieczenie przed duplikatami kluczy
-                    direction: DismissDirection.endToStart,
-                    onDismissed: (direction) {
-                      final String removedTaskTitle = task.title;
+          int completedTasks = TaskRepository.tasks.where((task) => task.done).length;
+          List<Task> filteredTasks = TaskRepository.tasks;
 
-                      setState(() {
-                        // Usuwamy konkretny obiekt z globalnej listy
-                        TaskRepository.tasks.remove(task);
-                      });
+          if (selectedFilter == "wykonane") {
+            filteredTasks = TaskRepository.tasks.where((task) => task.done).toList();
+          } else if (selectedFilter == "do zrobienia") {
+            filteredTasks = TaskRepository.tasks.where((task) => !task.done).toList();
+          }
 
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("Usunięto zadanie: $removedTaskTitle"),
-                          duration: const Duration(seconds: 2),
+          return Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Masz dziś ${TaskRepository.tasks.length} zadań. Wykonano: $completedTasks"),
+                SizedBox(height: 8),
+
+                FilterBar(
+                  selectedFilter: selectedFilter,
+                  onFilterChanged: (newFilter) {
+                    setState(() {
+                      selectedFilter = newFilter;
+                    });
+                  },
+                ),
+                SizedBox(height: 8),
+
+                Text(
+                  "Dzisiejsze zadania",
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 16),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: filteredTasks.length,
+                    itemBuilder: (context, index) {
+                      final task = filteredTasks[index];
+
+                      return Dismissible(
+                        key: ValueKey(task.title + task.hashCode.toString()),
+                        direction: DismissDirection.endToStart,
+                        onDismissed: (direction) {
+                          final String removedTaskTitle = task.title;
+
+                          setState(() {
+                            TaskRepository.tasks.remove(task);
+                          });
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text("Usunięto zadanie: $removedTaskTitle"),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        child: TaskCard(
+                          title: task.title,
+                          deadline: task.deadline,
+                          priority: task.priority,
+                          done: task.done,
+                          onChanged: (bool? newValue) {
+                            setState(() {
+                              task.done = newValue ?? false;
+                            });
+                          },
+                          onTap: () async {
+                            final Task? updatedTask = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => EditTaskScreen(task: task),
+                              ),
+                            );
+
+                            if (updatedTask != null) {
+                              final originalIndex = TaskRepository.tasks.indexOf(task);
+                              if (originalIndex != -1) {
+                                setState(() {
+                                  TaskRepository.tasks[originalIndex] = updatedTask;
+                                });
+                              }
+                            }
+                          },
                         ),
                       );
                     },
-                    child: TaskCard(
-                      title: task.title,
-                      deadline: task.deadline,
-                      priority: task.priority,
-                      done: task.done, // Zadanie 3: przekazanie statusu
-                      onChanged: (bool? newValue) {
-                        setState(() {
-                          task.done = newValue ?? false;
-                        });
-                      },
-                      onTap: () async {
-                        // Zadanie 2: Edycja zadania
-                        final Task? updatedTask = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => EditTaskScreen(task: task),
-                          ),
-                        );
-
-                        if (updatedTask != null) {
-                          // Szukamy po oryginale ze względu na filtry
-                          final originalIndex = TaskRepository.tasks.indexOf(task);
-                          if (originalIndex != -1) {
-                            setState(() {
-                              TaskRepository.tasks[originalIndex] = updatedTask;
-                            });
-                          }
-                        }
-                      },
-                    ),
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
@@ -207,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
-//WIDGETY POMOCNICZE
+// WIDGETY POMOCNICZE
 
 class FilterBar extends StatelessWidget {
   final String selectedFilter;
