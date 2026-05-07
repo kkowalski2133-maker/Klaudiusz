@@ -6,7 +6,12 @@ class Task {
   bool done;
   String priority;
 
-  Task({required this.title, required this.deadline, required this.done, required this.priority});
+  Task({
+    required this.title,
+    required this.deadline,
+    required this.done,
+    required this.priority
+  });
 }
 
 class TaskRepository {
