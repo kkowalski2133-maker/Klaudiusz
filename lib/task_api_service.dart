@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
-import 'task_repository.dart';
+import 'task.dart';
+
 class TaskApiService {
   static const String baseUrl = "https://dummyjson.com";
 
@@ -21,6 +22,7 @@ class TaskApiService {
         final deadline = deadlines[random.nextInt(deadlines.length)];
 
         return Task(
+          id: todo["id"], // Nowe pole ID pobierane z sieci
           title: todo["todo"],
           deadline: deadline,
           done: todo["completed"],
